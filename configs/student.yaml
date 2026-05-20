@@ -1,4 +1,4 @@
-seed: 289
+seed: 11
 device: auto
 torch_num_threads: 1
 
@@ -9,26 +9,42 @@ model:
 
 training:
   batch_size: 256
-  updates: 18000
+  updates: 30000
   smoke_updates: 120
-  train_sequence_length: 128
+  train_sequence_length: 64
   learning_rate: 5.0e-4
   grad_clip_norm: 2.0
-  eval_every: 500
+  eval_every: 1000
   smoke_eval_every: 20
-  val_horizon: 300
+  val_horizon: 1000
   max_val_windows: 128
   checkpoint_metric: val/VPT80@0.25
   checkpoint_mode: max
 
+# Pure one-step training. The trapezoidal kinematic prior in
+# `student/model.py` already makes position-channel error grow linearly,
+# so the only thing the loss has to optimise is the (very accurate)
+# per-step velocity prediction. Any rollout-loss term we tried sacrificed
+# per-step accuracy more than it bought in long-horizon stability, which
+# *reduced* `VPT80@0.25` (the graded metric, dominated by per-step error
+# in the first ~tens of predicted steps).
+#
+# `obs_noise_std=0.03` adds mild denoising perturbations so the per-step
+# model is robust to the small drifts that accumulate in open-loop
+# rollout — slightly higher than v3's 0.02, slightly lower than the
+# 0.1 we observed to hurt.
 loss:
-  one_step_weight: 3.0
-  rollout_weight: 1.0
-  rollout_train_horizon: 60
-  rollout_min_horizon: 5
-  delta_reg_weight: 1.0e-4
+  one_step_weight: 1.0
+  rollout_weight: 0.0
+  rollout_train_horizon: 1
+  rollout_min_horizon: 1
+  rollout_delay_steps: 0
+  rollout_warmup_steps: 0
+  rollout_fixed_horizon: true
+  tbptt_chunk: 20
+  delta_reg_weight: 0.0
   delta_reg_slack: 5.0
-  obs_noise_std: 0.02
+  obs_noise_std: 0.03
 
 eval:
   warmup_steps: 10

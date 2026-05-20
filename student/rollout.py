@@ -1,4 +1,9 @@
-"""Student open-loop rollout implementation."""
+"""Student open-loop rollout implementation.
+
+This is shared by the training rollout loss and any diagnostic rollouts the
+student does. The *official* evaluation uses `wm_hw.official_rollout` which
+mirrors the no-leak structure below.
+"""
 
 from __future__ import annotations
 
@@ -21,8 +26,9 @@ def open_loop_rollout(
     Future ground-truth states after `warmup_steps` must not be read.
 
     When `tbptt_chunk` is set, gradients are detached every `tbptt_chunk` steps
-    of the rollout. This caps backprop length to stabilize long-horizon training
-    without leaking ground truth into the prediction trajectory.
+    of the rollout. This caps backprop length to keep memory bounded for very
+    long training horizons (e.g. 200+) without leaking ground truth into the
+    prediction trajectory.
     """
     batch_size = states.shape[0]
     hidden = model.initial_hidden(batch_size, states.device)
@@ -36,6 +42,8 @@ def open_loop_rollout(
             cur = cur.detach()
             if hidden is not None:
                 hidden = hidden.detach()
-        cur, hidden = predict_next(model, cur, actions[:, int(warmup_steps) + h], hidden, normalizer)
+        cur, hidden = predict_next(
+            model, cur, actions[:, int(warmup_steps) + h], hidden, normalizer
+        )
         preds.append(cur)
     return torch.stack(preds, dim=1)
